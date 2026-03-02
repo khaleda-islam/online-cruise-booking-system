@@ -3,6 +3,9 @@
 ## Table of Contents
 1. [User Authentication & Registration Module](#user-authentication--registration-module)
 2. [Cruise Reservation Module](#cruise-reservation-module)
+3. [Payment Integration Module](#payment-integration-module)
+4. [Modify & Cancel Reservation Module](#modify--cancel-reservation-module)
+5. [Customer Profile Management Module](#customer-profile-management-module)
 
 ---
 
@@ -1384,4 +1387,594 @@ ORDER BY r.reservation_date DESC;
 
 ---
 
-## User Authentication & Registration Module (Continued)
+---
+
+# Payment Integration Module
+
+## Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    RESERVATIONS ||--o{ PAYMENT_TRANSACTIONS : paid_via
+
+    RESERVATIONS {
+        bigint reservation_id PK
+        bigint user_id FK
+        bigint cruise_id FK
+        bigint cruise_cabin_id FK
+        varchar reservation_number UK
+        int total_passengers
+        int adult_count
+        int child_count
+        decimal total_price
+        varchar status
+        varchar payment_status
+        varchar cancellation_reason
+        timestamp reservation_date
+        timestamp confirmed_at
+        timestamp cancelled_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    PAYMENT_TRANSACTIONS {
+        bigint payment_id PK
+        bigint reservation_id FK
+        varchar payment_method
+        varchar gateway_transaction_id UK
+        decimal amount
+        varchar currency
+        varchar status
+        timestamp payment_date
+        decimal refund_amount
+        timestamp refund_date
+        varchar notes
+        timestamp created_at
+        timestamp updated_at
+    }
+```
+
+> **Note:** No payment card details (card number, CVV, expiry) are stored. Only the `gateway_transaction_id` from the payment provider (Stripe, PayPal, etc.) is persisted.
+
+---
+
+## Table Definitions
+
+### 1. PAYMENT_TRANSACTIONS Table
+**Purpose:** Records payment attempts and confirmations for each reservation without storing sensitive payment details
+
+| Column Name           | Data Type     | Constraints                              | Description                                              |
+|-----------------------|---------------|------------------------------------------|----------------------------------------------------------|
+| payment_id            | BIGINT        | PRIMARY KEY, AUTO_INCREMENT              | Unique payment transaction identifier                    |
+| reservation_id        | BIGINT        | FOREIGN KEY (RESERVATIONS.reservation_id)| Reference to the reservation being paid                  |
+| payment_method        | VARCHAR(20)   | NOT NULL                                 | CREDIT_CARD, DEBIT_CARD, PAYPAL, APPLE_PAY, GOOGLE_PAY  |
+| gateway_transaction_id| VARCHAR(255)  | UNIQUE, NOT NULL                         | External transaction ID from payment gateway             |
+| amount                | DECIMAL(10,2) | NOT NULL                                 | Payment amount                                           |
+| currency              | VARCHAR(10)   | DEFAULT 'USD'                            | ISO currency code                                        |
+| status                | VARCHAR(20)   | DEFAULT 'PENDING'                        | PENDING, COMPLETED, FAILED, REFUNDED                     |
+| payment_date          | TIMESTAMP     | DEFAULT CURRENT_TIMESTAMP                | When payment was processed                               |
+| refund_amount         | DECIMAL(10,2) | NULL                                     | Amount refunded (if applicable)                          |
+| refund_date           | TIMESTAMP     | NULL                                     | When refund was processed                                |
+| notes                 | VARCHAR(500)  | NULL                                     | Additional notes or failure reason                       |
+| created_at            | TIMESTAMP     | DEFAULT CURRENT_TIMESTAMP                | Record creation timestamp                                |
+| updated_at            | TIMESTAMP     | ON UPDATE CURRENT_TIMESTAMP              | Last update timestamp                                    |
+
+**Security Note:** Fields intentionally **not stored**: card number, CVV, expiry date, billing address. These are handled exclusively by the PCI-compliant payment gateway.
+
+**Supported Payment Methods:**
+- `CREDIT_CARD` — Visa, MasterCard, Amex (tokenised by gateway)
+- `DEBIT_CARD` — Debit card via payment gateway
+- `PAYPAL` — PayPal transaction
+- `APPLE_PAY` — Apple Pay via Stripe / Braintree
+- `GOOGLE_PAY` — Google Pay via Stripe / Braintree
+
+**Indexes:**
+- PRIMARY KEY: `payment_id`
+- UNIQUE INDEX: `gateway_transaction_id`
+- FOREIGN KEY: `reservation_id` REFERENCES `RESERVATIONS(reservation_id)`
+- INDEX: `reservation_id`, `status`
+- INDEX: `payment_date`
+
+---
+
+## RESERVATIONS Table — Updated Column
+
+The `RESERVATIONS` table is extended with a `cancellation_reason` column to support the cancel reservation feature (Requirement 6):
+
+| Column Name         | Data Type    | Constraints                | Description                                 |
+|---------------------|--------------|----------------------------|---------------------------------------------|
+| cancellation_reason | VARCHAR(500) | NULL                       | Reason provided by customer upon cancellation|
+
+---
+
+## Payment Workflow
+
+### Checkout & Payment Flow
+
+```mermaid
+sequenceDiagram
+    participant Customer
+    participant Frontend
+    participant Backend
+    participant PaymentGateway
+    participant Database
+
+    Customer->>Frontend: Review booking summary
+    Frontend->>Customer: Display payment options<br/>(Credit/Debit Card, PayPal,<br/>Apple Pay, Google Pay)
+
+    Customer->>Frontend: Select payment method & submit
+    Frontend->>PaymentGateway: Tokenise card details (client-side SDK)
+    PaymentGateway-->>Frontend: Payment token (no card data on server)
+
+    Frontend->>Backend: POST /api/payments/process<br/>{ reservation_id, payment_method, token, amount }
+    Backend->>PaymentGateway: Charge request with token
+    PaymentGateway-->>Backend: gateway_transaction_id + status
+
+    alt Payment Successful
+        Backend->>Database: INSERT INTO PAYMENT_TRANSACTIONS<br/>(status = 'COMPLETED')
+        Backend->>Database: UPDATE RESERVATIONS<br/>SET status='CONFIRMED', payment_status='PAID',<br/>confirmed_at=NOW()
+        Backend-->>Frontend: Success + confirmation data
+        Frontend-->>Customer: Show confirmation dialog<br/>(reservation_number, ship_name, departure_date)
+    else Payment Failed
+        Backend->>Database: INSERT INTO PAYMENT_TRANSACTIONS<br/>(status = 'FAILED')
+        Backend-->>Frontend: Failure message
+        Frontend-->>Customer: Display error, retry options
+    end
+```
+
+---
+
+## SQL Schema Creation Scripts
+
+### Create PAYMENT_TRANSACTIONS Table
+```sql
+CREATE TABLE payment_transactions (
+    payment_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    reservation_id BIGINT NOT NULL,
+    payment_method VARCHAR(20) NOT NULL,
+    gateway_transaction_id VARCHAR(255) NOT NULL UNIQUE,
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    status VARCHAR(20) DEFAULT 'PENDING',
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    refund_amount DECIMAL(10,2) NULL,
+    refund_date TIMESTAMP NULL,
+    notes VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(reservation_id),
+    INDEX idx_reservation_id (reservation_id),
+    INDEX idx_gateway_txn (gateway_transaction_id),
+    INDEX idx_status_date (status, payment_date),
+    CHECK (payment_method IN ('CREDIT_CARD', 'DEBIT_CARD', 'PAYPAL', 'APPLE_PAY', 'GOOGLE_PAY')),
+    CHECK (status IN ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'))
+);
+```
+
+### Alter RESERVATIONS Table (add cancellation_reason)
+```sql
+ALTER TABLE reservations
+    ADD COLUMN cancellation_reason VARCHAR(500) NULL
+        AFTER cancelled_at;
+```
+
+---
+
+## Sample Queries
+
+### Process Payment
+```sql
+-- 1. Insert payment transaction after gateway confirmation
+INSERT INTO payment_transactions (
+    reservation_id, payment_method, gateway_transaction_id,
+    amount, currency, status
+) VALUES (
+    ?, 'PAYPAL', 'PAY-9XY123ABC456789',
+    4500.00, 'USD', 'COMPLETED'
+);
+
+-- 2. Confirm the reservation
+UPDATE reservations
+SET status = 'CONFIRMED',
+    payment_status = 'PAID',
+    confirmed_at = CURRENT_TIMESTAMP
+WHERE reservation_id = ?;
+```
+
+### Get Payment Confirmation Details
+```sql
+SELECT
+    r.reservation_number,
+    s.ship_name,
+    c.departure_date,
+    c.return_date,
+    d.destination_name,
+    r.total_price,
+    pt.payment_method,
+    pt.gateway_transaction_id,
+    pt.payment_date
+FROM reservations r
+JOIN cruises c ON r.cruise_id = c.cruise_id
+JOIN ships s ON c.ship_id = s.ship_id
+JOIN destinations d ON c.destination_id = d.destination_id
+JOIN payment_transactions pt ON pt.reservation_id = r.reservation_id
+WHERE r.reservation_id = ?
+  AND pt.status = 'COMPLETED';
+```
+
+---
+
+---
+
+# Modify & Cancel Reservation Module
+
+## Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    USERS ||--o{ RESERVATION_MODIFICATIONS : makes
+    RESERVATIONS ||--o{ RESERVATION_MODIFICATIONS : tracked_by
+    CABIN_TYPES ||--o{ RESERVATION_MODIFICATIONS : old_cabin_type
+    CABIN_TYPES ||--o{ RESERVATION_MODIFICATIONS : new_cabin_type
+
+    RESERVATION_MODIFICATIONS {
+        bigint modification_id PK
+        bigint reservation_id FK
+        bigint modified_by FK
+        varchar modification_type
+        int old_cabin_type_id FK
+        int new_cabin_type_id FK
+        date old_departure_date
+        date new_departure_date
+        int old_passenger_count
+        int new_passenger_count
+        decimal price_difference
+        text notes
+        timestamp modified_at
+    }
+```
+
+---
+
+## Table Definitions
+
+### 1. RESERVATION_MODIFICATIONS Table
+**Purpose:** Audit log of all changes made to a reservation (dates, cabin type, passenger count)
+
+| Column Name          | Data Type     | Constraints                                   | Description                                    |
+|----------------------|---------------|-----------------------------------------------|------------------------------------------------|
+| modification_id      | BIGINT        | PRIMARY KEY, AUTO_INCREMENT                   | Unique modification record identifier          |
+| reservation_id       | BIGINT        | FOREIGN KEY (RESERVATIONS.reservation_id)     | Reservation that was modified                  |
+| modified_by          | BIGINT        | FOREIGN KEY (USERS.user_id)                   | Customer who made the change                   |
+| modification_type    | VARCHAR(50)   | NOT NULL                                      | DATES_CHANGE, CABIN_CHANGE, PASSENGER_COUNT_CHANGE, MULTIPLE |
+| old_cabin_type_id    | INT           | FOREIGN KEY (CABIN_TYPES.cabin_type_id), NULL | Previous cabin type (NULL if not changed)      |
+| new_cabin_type_id    | INT           | FOREIGN KEY (CABIN_TYPES.cabin_type_id), NULL | New cabin type (NULL if not changed)           |
+| old_departure_date   | DATE          | NULL                                          | Previous departure date (NULL if not changed)  |
+| new_departure_date   | DATE          | NULL                                          | New departure date (NULL if not changed)       |
+| old_passenger_count  | INT           | NULL                                          | Previous total passengers                      |
+| new_passenger_count  | INT           | NULL                                          | New total passengers                           |
+| price_difference     | DECIMAL(10,2) | DEFAULT 0.00                                  | Price adjustment (+/-). Positive = extra charge|
+| notes                | TEXT          | NULL                                          | Customer or system notes                       |
+| modified_at          | TIMESTAMP     | DEFAULT CURRENT_TIMESTAMP                     | When the modification was made                 |
+
+**Indexes:**
+- PRIMARY KEY: `modification_id`
+- FOREIGN KEY: `reservation_id` REFERENCES `RESERVATIONS(reservation_id)` ON DELETE CASCADE
+- FOREIGN KEY: `modified_by` REFERENCES `USERS(user_id)`
+- FOREIGN KEY: `old_cabin_type_id` REFERENCES `CABIN_TYPES(cabin_type_id)`
+- FOREIGN KEY: `new_cabin_type_id` REFERENCES `CABIN_TYPES(cabin_type_id)`
+- INDEX: `reservation_id`, `modified_at`
+
+---
+
+## Modify Reservation Workflow
+
+```mermaid
+sequenceDiagram
+    participant Customer
+    participant Frontend
+    participant Backend
+    participant Database
+
+    Customer->>Frontend: Access reservation & click Edit
+    Frontend->>Backend: GET /api/reservations/{id}
+    Backend->>Database: SELECT reservation + cruise + cabin details
+    Database-->>Backend: Current reservation data
+    Backend-->>Frontend: Pre-fill form with current values
+
+    Customer->>Frontend: Update cabin type / dates / passengers
+    Frontend->>Backend: PUT /api/reservations/{id}
+    Backend->>Backend: Validate new passenger count ≤ cabin max_occupancy
+    Backend->>Backend: Calculate price difference
+    Backend->>Database: BEGIN TRANSACTION
+    Backend->>Database: UPDATE RESERVATIONS (new cabin, passengers, price)
+    Backend->>Database: INSERT INTO RESERVATION_MODIFICATIONS (audit log)
+    Backend->>Database: COMMIT TRANSACTION
+    Backend-->>Frontend: Updated confirmation details
+    Frontend-->>Customer: Display updated booking summary
+```
+
+---
+
+## Cancel Reservation Workflow
+
+### Cancellation Policy
+- A reservation can only be cancelled if the **departure date is more than 10 days away** from the current date.
+- The backend enforces this rule regardless of frontend validation.
+
+```mermaid
+sequenceDiagram
+    participant Customer
+    participant Frontend
+    participant Backend
+    participant Database
+
+    Customer->>Frontend: Click "Cancel Reservation"
+    Frontend->>Backend: DELETE /api/reservations/{id}
+    Backend->>Database: SELECT departure_date FROM cruises<br/>WHERE cruise_id = reservation.cruise_id
+    Database-->>Backend: departure_date
+
+    Backend->>Backend: Check: (departure_date - TODAY) > 10 days
+
+    alt Cancellation Allowed
+        Backend->>Database: BEGIN TRANSACTION
+        Backend->>Database: UPDATE RESERVATIONS<br/>SET status='CANCELLED',<br/>payment_status='REFUNDED',<br/>cancelled_at=NOW(),<br/>cancellation_reason=?
+        Backend->>Database: UPDATE CRUISE_CABINS<br/>SET is_available=TRUE
+        Backend->>Database: UPDATE CRUISES<br/>SET available_cabins = available_cabins + 1
+        Backend->>Database: UPDATE PAYMENT_TRANSACTIONS<br/>SET status='REFUNDED', refund_date=NOW()
+        Backend->>Database: COMMIT TRANSACTION
+        Backend-->>Frontend: Cancellation confirmed
+        Frontend-->>Customer: Show cancellation confirmation
+    else Within 10-Day Window
+        Backend-->>Frontend: 400 Bad Request<br/>{ error: "Cannot cancel within 10 days of departure" }
+        Frontend-->>Customer: Display policy error message
+    end
+```
+
+---
+
+## SQL Schema Creation Scripts
+
+### Create RESERVATION_MODIFICATIONS Table
+```sql
+CREATE TABLE reservation_modifications (
+    modification_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    reservation_id BIGINT NOT NULL,
+    modified_by BIGINT NOT NULL,
+    modification_type VARCHAR(50) NOT NULL,
+    old_cabin_type_id INT NULL,
+    new_cabin_type_id INT NULL,
+    old_departure_date DATE NULL,
+    new_departure_date DATE NULL,
+    old_passenger_count INT NULL,
+    new_passenger_count INT NULL,
+    price_difference DECIMAL(10,2) DEFAULT 0.00,
+    notes TEXT,
+    modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(reservation_id) ON DELETE CASCADE,
+    FOREIGN KEY (modified_by) REFERENCES users(user_id),
+    FOREIGN KEY (old_cabin_type_id) REFERENCES cabin_types(cabin_type_id),
+    FOREIGN KEY (new_cabin_type_id) REFERENCES cabin_types(cabin_type_id),
+    INDEX idx_reservation_mod (reservation_id, modified_at),
+    CHECK (modification_type IN ('DATES_CHANGE', 'CABIN_CHANGE', 'PASSENGER_COUNT_CHANGE', 'MULTIPLE'))
+);
+```
+
+---
+
+## Business Logic & Constraints
+
+### Modify Reservation Rules
+
+1. **Dates Change:** New departure date must be in the future and availability must be confirmed.
+2. **Cabin Change:** New cabin must be available (`is_available = TRUE`) and support the current passenger count.
+3. **Passenger Count Change:** New count must not exceed the cabin's `max_occupancy`. At least one adult required.
+4. **Price Adjustment:** Any price difference is charged or refunded via the payment gateway; a new `PAYMENT_TRANSACTIONS` record is created.
+
+### Cancel Reservation Rules
+
+1. **10-Day Policy:**
+   ```
+   DATEDIFF(cruise.departure_date, CURDATE()) > 10
+   ```
+2. **Idempotency:** Cannot cancel an already-cancelled or completed reservation.
+3. **Refund:** Full refund issued; `payment_transactions.status` updated to `REFUNDED` and `refund_amount` set.
+
+---
+
+## Sample Queries
+
+### Modify Reservation — Cabin Change
+```sql
+-- 1. Log the modification
+INSERT INTO reservation_modifications (
+    reservation_id, modified_by, modification_type,
+    old_cabin_type_id, new_cabin_type_id, price_difference
+) VALUES (?, ?, 'CABIN_CHANGE', 3, 4, 500.00);
+
+-- 2. Release old cabin, assign new cabin
+UPDATE cruise_cabins SET is_available = TRUE  WHERE cruise_cabin_id = ?;  -- old
+UPDATE cruise_cabins SET is_available = FALSE WHERE cruise_cabin_id = ?;  -- new
+
+-- 3. Update reservation
+UPDATE reservations
+SET cruise_cabin_id = ?,
+    total_price = total_price + 500.00,
+    updated_at = CURRENT_TIMESTAMP
+WHERE reservation_id = ?;
+```
+
+### Cancel Reservation with Policy Check
+```sql
+-- Check 10-day cancellation policy
+SELECT
+    r.reservation_id,
+    r.status,
+    c.departure_date,
+    DATEDIFF(c.departure_date, CURDATE()) AS days_until_departure
+FROM reservations r
+JOIN cruises c ON r.cruise_id = c.cruise_id
+WHERE r.reservation_id = ?
+  AND r.status NOT IN ('CANCELLED', 'COMPLETED');
+-- Application checks days_until_departure > 10 before proceeding
+
+-- Perform cancellation
+UPDATE reservations
+SET status = 'CANCELLED',
+    payment_status = 'REFUNDED',
+    cancelled_at = CURRENT_TIMESTAMP,
+    cancellation_reason = 'Customer requested cancellation'
+WHERE reservation_id = ?;
+
+-- Restore cabin availability
+UPDATE cruise_cabins SET is_available = TRUE WHERE cruise_cabin_id = ?;
+UPDATE cruises SET available_cabins = available_cabins + 1 WHERE cruise_id = ?;
+
+-- Record refund
+UPDATE payment_transactions
+SET status = 'REFUNDED',
+    refund_amount = ?,
+    refund_date = CURRENT_TIMESTAMP
+WHERE reservation_id = ? AND status = 'COMPLETED';
+```
+
+### Get Modification History for a Reservation
+```sql
+SELECT
+    rm.modified_at,
+    rm.modification_type,
+    rm.price_difference,
+    rm.notes,
+    CONCAT(u.first_name, ' ', u.last_name) AS modified_by,
+    oct.type_name AS old_cabin_type,
+    nct.type_name AS new_cabin_type,
+    rm.old_departure_date,
+    rm.new_departure_date,
+    rm.old_passenger_count,
+    rm.new_passenger_count
+FROM reservation_modifications rm
+JOIN users u ON rm.modified_by = u.user_id
+LEFT JOIN cabin_types oct ON rm.old_cabin_type_id = oct.cabin_type_id
+LEFT JOIN cabin_types nct ON rm.new_cabin_type_id = nct.cabin_type_id
+WHERE rm.reservation_id = ?
+ORDER BY rm.modified_at DESC;
+```
+
+---
+
+---
+
+# Customer Profile Management Module
+
+The `USERS` table (defined in the [User Authentication & Registration Module](#user-authentication--registration-module)) already contains all fields required for customer profile management.
+
+## Editable Profile Fields
+
+| Field          | Column in USERS | Notes                                         |
+|----------------|-----------------|-----------------------------------------------|
+| Address        | `address`, `city`, `state`, `postal_code`, `country` | Full address decomposition |
+| Phone number   | `phone_number`  |                                               |
+| Email          | `email`         | Triggers re-verification on change            |
+| Password       | `password_hash` | Requires current password verification; invalidates other sessions |
+
+---
+
+## Customer Profile Update Workflow
+
+```mermaid
+sequenceDiagram
+    participant Customer
+    participant Frontend
+    participant Backend
+    participant Database
+
+    Customer->>Frontend: Navigate to Profile Page
+    Frontend->>Backend: GET /api/users/profile
+    Backend->>Database: SELECT FROM USERS WHERE user_id = ?
+    Database-->>Backend: Current profile data
+    Backend-->>Frontend: Profile data (excluding password_hash)
+    Frontend-->>Customer: Display pre-filled profile form
+
+    Customer->>Frontend: Edit fields and submit
+    Frontend->>Backend: PUT /api/users/profile
+    Backend->>Backend: Validate input (phone format, email format, etc.)
+
+    alt Email Changed
+        Backend->>Backend: Check email uniqueness
+        Backend->>Database: UPDATE USERS SET email=?, email_verified=FALSE
+        Backend->>Backend: Send verification email
+        Backend-->>Frontend: Success + "Verify new email" notice
+    else Password Changed
+        Backend->>Backend: Verify current password hash
+        Backend->>Backend: Hash new password
+        Backend->>Database: UPDATE USERS SET password_hash=?
+        Backend->>Database: DELETE FROM USER_SESSIONS<br/>WHERE user_id=? AND session_token != currentToken
+        Backend-->>Frontend: Success + re-login notice
+    else Other Fields
+        Backend->>Database: UPDATE USERS SET address=?, phone_number=?, etc.
+        Backend-->>Frontend: Success response
+    end
+
+    Frontend-->>Customer: Display updated profile confirmation
+```
+
+---
+
+## Sample Queries
+
+### Get Customer Profile
+```sql
+SELECT
+    user_id, first_name, last_name, email, username,
+    phone_number, address, city, state, postal_code, country,
+    email_verified, is_active, created_at, last_login
+FROM users
+WHERE user_id = ?;
+```
+
+### Update Personal Information
+```sql
+UPDATE users
+SET phone_number  = ?,
+    address       = ?,
+    city          = ?,
+    state         = ?,
+    postal_code   = ?,
+    country       = ?,
+    updated_at    = CURRENT_TIMESTAMP
+WHERE user_id = ?;
+```
+
+### Update Email (Triggers Re-verification)
+```sql
+UPDATE users
+SET email          = ?,
+    email_verified = FALSE,
+    updated_at     = CURRENT_TIMESTAMP
+WHERE user_id = ?;
+-- Application must send a verification email after this update
+```
+
+### Change Password
+```sql
+-- 1. Verify current password (in application layer via bcrypt compare)
+-- 2. Update to new hash
+UPDATE users
+SET password_hash = ?,
+    updated_at    = CURRENT_TIMESTAMP
+WHERE user_id = ?;
+
+-- 3. Invalidate all other sessions
+DELETE FROM user_sessions
+WHERE user_id = ?
+  AND session_token != ?;  -- keep current session token
+```
+
+---
+
+## Security Considerations for Profile Updates
+
+1. **Email Changes:** Set `email_verified = FALSE` and resend verification email; do not allow certain features until re-verified.
+2. **Password Changes:** Hash with bcrypt/Argon2 before storage; invalidate all previously issued JWT tokens / sessions.
+3. **Rate Limiting:** Apply rate limiting to profile update endpoints to prevent abuse.
+4. **Audit Logging:** Consider storing a `USER_PROFILE_AUDIT` table to track changes to sensitive fields (email, password) over time.
