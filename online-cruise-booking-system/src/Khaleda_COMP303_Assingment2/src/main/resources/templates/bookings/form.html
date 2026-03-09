@@ -54,7 +54,7 @@
                   <option value="">-- Select Cabin --</option>
                   <option th:each="cab : ${cabins}"
                           th:value="${cab.cruiseCabinId}"
-                          th:text="${cab.cabinNumber + (cab.deck != null ? ' — Deck ' + cab.deck : '')}"
+                          th:text="${cab.cabinNumber + (cab.deck != null ? ' ' + cab.deck : '') + (cab.viewType != null ? ' - ' + cab.viewType : '')}"
                           th:selected="${booking.cruiseCabin != null and booking.cruiseCabin.cruiseCabinId == cab.cruiseCabinId}">
                   </option>
                 </select>

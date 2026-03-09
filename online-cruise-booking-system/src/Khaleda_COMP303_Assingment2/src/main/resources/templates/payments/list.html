@@ -59,7 +59,14 @@
                   </td>
                   <td th:text="${p.transactionDate != null ? #temporals.format(p.transactionDate, 'yyyy-MM-dd HH:mm') : '-'}"></td>
                   <td th:text="${p.paymentGatewayRef != null ? p.paymentGatewayRef : '-'}"></td>
-                  <td>
+                  <td class="text-nowrap">
+                    <button type="button"
+                            class="btn btn-sm btn-outline-success me-1"
+                            data-bs-toggle="modal"
+                            th:data-bs-target="'#receiptModal' + ${p.transactionId}"
+                            title="View Receipt">
+                      <i class="bi bi-eye"></i> View
+                    </button>
                     <a th:href="@{/payments/receipt/{id}(id=${p.transactionId})}" 
                        class="btn btn-sm btn-outline-primary" 
                        title="Download PDF Receipt">
@@ -77,6 +84,112 @@
           </div>
         </div>
       </div>
+
+      <!-- Receipt Modals -->
+      <div th:each="p : ${payments}">
+        <div class="modal fade" th:id="'receiptModal' + ${p.transactionId}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                  <i class="bi bi-receipt me-2"></i>Payment Receipt
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <!-- Receipt Header -->
+                <div class="text-center mb-4 pb-3 border-bottom">
+                  <h4 class="fw-bold mb-1">PAYMENT RECEIPT</h4>
+                  <p class="text-muted mb-0">Receipt #<span th:text="${p.transactionId}" class="fw-bold"></span></p>
+                </div>
+
+                <!-- Transaction Details -->
+                <div class="card mb-3 shadow-sm">
+                  <div class="card-header bg-light">
+                    <strong><i class="bi bi-info-circle me-2"></i>Transaction Information</strong>
+                  </div>
+                  <div class="card-body">
+                    <div class="row">
+                      <div class="col-md-6">
+                        <p class="mb-2"><strong>Transaction ID:</strong> <span th:text="${p.transactionId}"></span></p>
+                        <p class="mb-2"><strong>Transaction Date:</strong> 
+                          <span th:text="${p.transactionDate != null ? #temporals.format(p.transactionDate, 'yyyy-MM-dd HH:mm:ss') : 'N/A'}"></span>
+                        </p>
+                        <p class="mb-0"><strong>Status:</strong> 
+                          <span class="badge"
+                                th:classappend="${p.transactionStatus == 'COMPLETED'} ? 'bg-success' : (${p.transactionStatus == 'FAILED'} ? 'bg-danger' : 'bg-warning text-dark')"
+                                th:text="${p.transactionStatus}"></span>
+                        </p>
+                      </div>
+                      <div class="col-md-6">
+                        <p class="mb-2"><strong>Payment Method:</strong> <span th:text="${p.paymentMethod}"></span></p>
+                        <p class="mb-2"><strong>Card Number:</strong> 
+                          <span th:text="${p.cardLastFour != null ? '•••• •••• •••• ' + p.cardLastFour : 'N/A'}"></span>
+                        </p>
+                        <p class="mb-0"><strong>Gateway Reference:</strong> 
+                          <span th:text="${p.paymentGatewayRef != null ? p.paymentGatewayRef : 'N/A'}"></span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Booking Details -->
+                <div class="card mb-3 shadow-sm" th:if="${p.booking != null}">
+                  <div class="card-header bg-light">
+                    <strong><i class="bi bi-calendar-check me-2"></i>Booking Information</strong>
+                  </div>
+                  <div class="card-body">
+                    <p class="mb-2"><strong>Booking ID:</strong> 
+                      <span th:text="'#' + ${p.booking.bookingId}"></span>
+                    </p>
+                    <p class="mb-2" th:if="${p.booking.user != null}">
+                      <strong>Customer Name:</strong> 
+                      <span th:text="${p.booking.user.firstName + ' ' + p.booking.user.lastName}"></span>
+                    </p>
+                    <p class="mb-2" th:if="${p.booking.user != null && p.booking.user.email != null}">
+                      <strong>Email:</strong> 
+                      <span th:text="${p.booking.user.email}"></span>
+                    </p>
+                    <p class="mb-2" th:if="${p.booking.cruise != null}">
+                      <strong>Cruise:</strong> 
+                      <span th:text="${p.booking.cruise.cruiseName}"></span>
+                    </p>
+                    <p class="mb-0" th:if="${p.booking.bookingDate != null}">
+                      <strong>Booking Date:</strong> 
+                      <span th:text="${p.booking.bookingDate}"></span>
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Amount -->
+                <div class="card border-primary shadow-sm">
+                  <div class="card-body text-center py-4">
+                    <h6 class="text-muted mb-2 text-uppercase">Total Amount Paid</h6>
+                    <h2 class="text-primary fw-bold mb-0">
+                      $<span th:text="${#numbers.formatDecimal(p.amount, 1, 2)}"></span> 
+                      <small class="fs-5" th:text="${p.currency != null ? p.currency : 'CAD'}"></small>
+                    </h2>
+                  </div>
+                </div>
+
+                <!-- Footer Note -->
+                <div class="text-center mt-4 pt-3 border-top">
+                  <p class="text-muted mb-0"><i class="bi bi-check-circle text-success me-2"></i>Thank you for your payment!</p>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a th:href="@{/payments/receipt/{id}(id=${p.transactionId})}" 
+                   class="btn btn-primary">
+                  <i class="bi bi-download me-1"></i>Download PDF
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 </div>
