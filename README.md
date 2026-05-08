@@ -332,11 +332,7 @@ Base URL: `http://localhost:8011`
 
 ---
 
-### Registration Page
-<!-- Screenshot: User registration form -->
-*Screenshot not available*
 
----
 
 ### Cruise List
 <!-- Screenshot: Available cruises page -->
@@ -350,11 +346,7 @@ Base URL: `http://localhost:8011`
 
 ---
 
-### Booking Form
-<!-- Screenshot: Create/edit booking form -->
-*Screenshot not available*
 
----
 
 ### Booking List
 <!-- Screenshot: All bookings with status -->
@@ -362,11 +354,7 @@ Base URL: `http://localhost:8011`
 
 ---
 
-### Passenger Management
-<!-- Screenshot: Add passenger form -->
-*Screenshot not available*
 
----
 
 ### Payment Form
 <!-- Screenshot: Payment processing page -->
