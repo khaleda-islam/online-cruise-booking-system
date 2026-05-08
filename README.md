@@ -48,6 +48,80 @@ Online Cruise Booking System is a full-stack web application built with Spring B
 
 ---
 
+---
+
+## Screenshots
+
+### Dashboard
+<!-- Screenshot: Main dashboard with statistics -->
+![Dashboard](docs/screen-shot/Dashboard.png)
+
+---
+
+### Login Page
+<!-- Screenshot: User login page -->
+![Login Page](docs/screen-shot/Login%20Page.png)
+
+---
+
+
+
+### Cruise List
+<!-- Screenshot: Available cruises page -->
+![Cruise List](docs/screen-shot/Cruise%20List.png)
+
+---
+
+### Cruise Details
+<!-- Screenshot: Detailed cruise information -->
+![Cruise Details](docs/screen-shot/Cruise%20Details.png)
+
+---
+
+
+
+### Booking List
+<!-- Screenshot: All bookings with status -->
+![Booking List](docs/screen-shot/Booking%20List.png)
+
+---
+
+
+
+### Payment Form
+<!-- Screenshot: Payment processing page -->
+![Payment Processing](docs/screen-shot/Payments.png)
+
+### Transaction Details
+<!-- Screenshot: Transaction details page -->
+![Transaction Details](docs/screen-shot/Transaction%20details.png)
+
+---
+
+### Payment Receipt (PDF)
+<!-- Screenshot: Generated PDF receipt -->
+![Payment Receipts](docs/screen-shot/Payment%20Reciepts.png)
+
+---
+
+### Ship Management
+<!-- Screenshot: Ships list and management -->
+![Ship Management](docs/screen-shot/Ship%20Management.png)
+
+---
+
+### Port Management
+<!-- Screenshot: Ports list and management -->
+![Port Management](docs/screen-shot/Port%20Management.png)
+
+---
+
+### User Profile
+<!-- Screenshot: User profile page -->
+![User Profile](docs/screen-shot/User%20Profile.png)
+
+---
+
 ## Project Structure
 
 ```
@@ -316,79 +390,7 @@ Base URL: `http://localhost:8011`
 | `/ports` | GET | List all ports |
 | `/users` | GET | List all users (admin) |
 
----
 
-## Screenshots
-
-### Dashboard
-<!-- Screenshot: Main dashboard with statistics -->
-![Dashboard](docs/screen-shot/Dashboard.png)
-
----
-
-### Login Page
-<!-- Screenshot: User login page -->
-![Login Page](docs/screen-shot/Login%20Page.png)
-
----
-
-
-
-### Cruise List
-<!-- Screenshot: Available cruises page -->
-![Cruise List](docs/screen-shot/Cruise%20List.png)
-
----
-
-### Cruise Details
-<!-- Screenshot: Detailed cruise information -->
-![Cruise Details](docs/screen-shot/Cruise%20Details.png)
-
----
-
-
-
-### Booking List
-<!-- Screenshot: All bookings with status -->
-![Booking List](docs/screen-shot/Booking%20List.png)
-
----
-
-
-
-### Payment Form
-<!-- Screenshot: Payment processing page -->
-![Payment Processing](docs/screen-shot/Payments.png)
-
-### Transaction Details
-<!-- Screenshot: Transaction details page -->
-![Transaction Details](docs/screen-shot/Transaction%20details.png)
-
----
-
-### Payment Receipt (PDF)
-<!-- Screenshot: Generated PDF receipt -->
-![Payment Receipts](docs/screen-shot/Payment%20Reciepts.png)
-
----
-
-### Ship Management
-<!-- Screenshot: Ships list and management -->
-![Ship Management](docs/screen-shot/Ship%20Management.png)
-
----
-
-### Port Management
-<!-- Screenshot: Ports list and management -->
-![Port Management](docs/screen-shot/Port%20Management.png)
-
----
-
-### User Profile
-<!-- Screenshot: User profile page -->
-![User Profile](docs/screen-shot/User%20Profile.png)
-
----
 
 ## Business Rules
 
