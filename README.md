@@ -322,79 +322,83 @@ Base URL: `http://localhost:8011`
 
 ### Dashboard
 <!-- Screenshot: Main dashboard with statistics -->
-[Add screenshot here]
+![Dashboard](docs/screen-shot/Dashboard.png)
 
 ---
 
 ### Login Page
 <!-- Screenshot: User login page -->
-[Add screenshot here]
+![Login Page](docs/screen-shot/Login%20Page.png)
 
 ---
 
 ### Registration Page
 <!-- Screenshot: User registration form -->
-[Add screenshot here]
+*Screenshot not available*
 
 ---
 
 ### Cruise List
 <!-- Screenshot: Available cruises page -->
-[Add screenshot here]
+![Cruise List](docs/screen-shot/Cruise%20List.png)
 
 ---
 
 ### Cruise Details
 <!-- Screenshot: Detailed cruise information -->
-[Add screenshot here]
+![Cruise Details](docs/screen-shot/Cruise%20Details.png)
 
 ---
 
 ### Booking Form
 <!-- Screenshot: Create/edit booking form -->
-[Add screenshot here]
+*Screenshot not available*
 
 ---
 
 ### Booking List
 <!-- Screenshot: All bookings with status -->
-[Add screenshot here]
+![Booking List](docs/screen-shot/Booking%20List.png)
 
 ---
 
 ### Passenger Management
 <!-- Screenshot: Add passenger form -->
-[Add screenshot here]
+*Screenshot not available*
 
 ---
 
 ### Payment Form
 <!-- Screenshot: Payment processing page -->
-[Add screenshot here]
+![Payment Processing](docs/screen-shot/Payments.png)
+
+### Transaction Details
+<!-- Screenshot: Transaction details page -->
+![Transaction Details](docs/screen-shot/Transaction%20details.png)
 
 ---
 
 ### Payment Receipt (PDF)
 <!-- Screenshot: Generated PDF receipt -->
-[Add screenshot here]
+![Payment Receipts](docs/screen-shot/Payment%20Reciepts.png)
 
 ---
 
 ### Ship Management
 <!-- Screenshot: Ships list and management -->
-[Add screenshot here]
+![Ship Management](docs/screen-shot/Ship%20Management.png)
 
 ---
 
 ### Port Management
 <!-- Screenshot: Ports list and management -->
-[Add screenshot here]
+![Port Management](docs/screen-shot/Port%20Management.png)
 
 ---
 
 ### User Profile
 <!-- Screenshot: User profile page -->
-[Add screenshot here]
+![User Profile](docs/screen-shot/User%20Profile.png)
 
 ---
 
